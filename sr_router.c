@@ -157,14 +157,25 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
 
   if (my_int) {
     if (ip_hdr->ip_p == 1) {
+
       /* ICMP */
       sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t)(ip_hdr + sizeof(sr_ip_hdr_t));
+      if (icmp_hdr->icmp_type != 0) {
+        /* Unsupported type, drop */
+        return ;
+      }
+      send_icmp_echo_reply(sr, pkt, interface, len);
+
     } else if (ip_hdr->ip_p == 0x0006 || ip_hdr->ip_p == 0x0011) {
       /* TCP/UDP */
+      
     } else {
       /* Unsupported Protocol */
       return ;
     }
+  } else {
+    /* Destined elsewhere, forward */
+    ;
   }
 
   // sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
@@ -224,6 +235,84 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
   // /* check ARP cache for next hop MAC addr corresponding to next hop IP */
   //   /* if its there, send it */
   //   /* else, send ARP request for next hop IP (if one hasnt been sent in past second) and add to ARP Q */
+}
+
+void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len) {
+  sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
+  sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + sizeof(sr_ip_hdr_t));
+
+  /* Prepare ICMP header */
+  icmp_hdr->type = 3;
+  icmp_hdr->code = 3;
+  icmp_hdr->sum = 0;
+  icmp_hdr->sum = cksum(icmp_hdr, sizeof(sr_icmp_hdr_t));
+
+  /* Prepare IP header */
+  struct sr_if *my_int = sr_get_interface(sr, interface);
+  ip_hdr->ip_dst = ip_hdr->ip_src;
+  ip_hdr->ip_src = my_int->ip;
+  ip_hdr->ip_sum = 0;
+  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+  /* Prepare Ethernet Frame */
+  uint8_t temp_src[ETHER_ADDR_LEN];
+  memcpy(temp_src, eth_hdr->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+  memcpy(eth_hdr->ether_shost, eth_hdr->ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+  memcpy(eth_hdr->ether_dhost, temp_src, sizeof(uint8_t) * ETHER_ADDR_LEN);
+
+  sr_send_packet(sr, pkt, len, interface);
+}
+
+void send_icmp3_error(int type, int code, struct sr_isntance *sr, uint32_t src_ip, uint32_t dst_ip, uint8_t *orig_pkt, unsigned int len, char *interface) {
+  unsigned int plen = sizeof(sr_ethernet_hdr_t) +_ sizeof(sr_icmp_t3_hdr_t) + sizeof(sr_ip_hdr_t);
+  uint8_t *ret_pkt = malloc(plen);
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(ret_pkt + sizeof(sr_ethernet_hdr_t));
+  sr_icmp_t3_hdr_t *icmp_hdr = (sr_icmp_t3_hdr_t *)(ip_hdr + sizeof(sr_ip_hdr_t));
+  sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t)(ret_pkt);
+
+  /* Construct ICMP Header */
+  icmp_hdr->type = type;
+  icmp_hdr->code = code;
+  icmp_hdr->sum = 0;
+  icmp_hdr->sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
+  memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(sr_ip_hdr_t) + 8);
+
+  /* Construct IP Header */
+  ip_hdr->ip_tos = 4;
+  ip_hdr->ip_len = 5;
+  ip_hdr->id_id = 0;
+  ip_hdr->ip_off = IP_DF;
+  ip_hdr->ip_ttl = 64;
+  ip_hdr->ip_p = ip_protocol_icmp;
+  ip_hdr->sum = 0;
+  ip_hdr->ip_dst = ((sr_ip_hdr_t *)(orig_pkt + sizeof(sr_ethernet_hdr_t)))->ip_src; /* Already net. byte order */
+
+  /* Find LPM for dest. IP */
+  struct sr_rt *dst_rt = longest_prefix_match(sr, ip_hdr->ip_dst);
+  if (dst_rt) {
+    /* Match found in RT */
+    struct sr_if *my_if = sr_get_interface(sr, dst_rt->interface);
+    ip_hdr->src_ip = my_if->ip;
+    memcpy(eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+
+    /* Consult ARP cache for previous dest. IP MAC */
+    struct sr_arpentry *arp_entry = sr_arpcache_lookup(sr->cache, ip_hdr->src_ip);
+    if (arp_entry) {
+      /* Match found, prepare Ethernet frame and send */
+      memcpy(eth_hdr->ether_dhost, arp_entry->mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
+      eth_hdr->ether_type = htonl(ethertype_ip);
+
+      /* Compute IP checksum and send */
+      ip_hdr->sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+      sr_send_packet()
+    } else {
+      /* No match exists, send ARP request and queue packet */
+      ;
+    }
+  } else {
+    ;
+  }
 }
 
 struct sr_rt *longest_prefix_match(struct sr_instance *sr, uint32_t dest_addr) {
