@@ -16,19 +16,29 @@
 */
 void handle_arpreq(struct sr_arpreq *req, struct sr_arpcache *cache) {
     /* TODO */
-   time_t now;
-   time(&now);
-   if (difftime(now, req->sent) > 1) {
-       if (req->times_sent > 5) {
-           /* send ICMP host unreachable to source add of all pkts waiting on this req */
-           sr_arpreq_destroy(cache, req);
-       } else {
-           /* send ARP req */
-           time(&now);
-           req->sent = now;
-           req->times_sent++;
-       }
-   }
+    time_t now;
+    time(&now);
+    if (difftime(now, req->sent) > 1) {
+        if (req->times_sent > 5) {
+            /* icmp host uncreachable packet */
+            struct sr_icmp_t3_hdr *msg;
+            msg->icmp_type = 3;
+            msg->icmp_code = 1;
+
+            /* TODO send packet */
+
+            sr_arpreq_destroy(cache, req);
+        } else {
+            /* ARP request */
+            struct sr_arp_hdr *fwd;
+
+            /* TODO send ARP req */
+
+            time(&now);
+            req->sent = now;
+            req->times_sent++;
+        }
+    }
 }
 
 /* 

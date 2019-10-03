@@ -54,6 +54,48 @@ struct sr_if* sr_get_interface(struct sr_instance* sr, const char* name)
     return 0;
 } /* -- sr_get_interface -- */
 
+struct sr_if *sr_get_interface_by_IP(struct sr_instance *sr, uint32_t ip) {
+    struct sr_if *walker = 0;
+
+    /* -- REQUIRES -- */
+    assert(ip);
+    assert(sr);
+
+    walker = sr->if_list;
+
+    while (walker) {
+        if (walker->ip == ip) {
+            return walker;
+        }
+        walker = walker->next;
+    }
+    return 0;
+}
+
+struct sr_if *sr_get_interface_by_MAC(struct sr_instance *sr, uint8_t mac[ETHER_ADDR_LEN]) {
+    /* -- REQUIRES -- */
+    assert(mac);
+    assert(sr);
+
+    struct sr_if *walker = 0; 
+    walker = sr->if_list;
+    int eq = 1;
+
+    while (walker) {
+        for (int i = 0; i < ETHER_ADDR_LEN; i++) {
+            if (mac[i] != walker->addr[i]) {
+                eq = 0;
+                break;
+            }
+        }
+        if (eq) {
+            return walker;
+        }
+        walker = walker->next;
+    }
+    return 0;
+}
+
 /*--------------------------------------------------------------------- 
  * Method: sr_add_interface(..)
  * Scope: Global
