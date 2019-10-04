@@ -198,7 +198,7 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   ip_hdr->ip_ttl--;
   if (ip_hdr <= 0) {
     /* send icmp time exceeded */
-    ;
+    send_icmp3_error(11, 0, sr, pkt);
   }
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 
@@ -223,18 +223,14 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   }
 }
 
-void send_icmp_time_exceeded(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
-  ;
-}
-
 void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len) {
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
   sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + sizeof(sr_ip_hdr_t));
 
   /* Prepare ICMP header */
-  icmp_hdr->icmp_type = 3;
-  icmp_hdr->icmp_code = 3;
+  icmp_hdr->icmp_type = 0;
+  icmp_hdr->icmp_code = 0;
   icmp_hdr->icmp_sum = 0;
   icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_hdr_t));
 
@@ -266,7 +262,7 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   icmp_hdr->icmp_code = code;
   icmp_hdr->icmp_sum = 0;
   icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
-  memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(sr_ip_hdr_t) + 8);
+  memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(sr_icmp_t3_hdr_t));
 
   /* Construct IP Header */
   ip_hdr->ip_tos = 4;
