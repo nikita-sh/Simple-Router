@@ -72,6 +72,9 @@ int check_arp_packet(uint8_t *pkt);
 void handle_arp(struct sr_instance *sr, uint8_t *pkt);
 int check_ip_packet(uint8_t *pkt, unsigned int len);
 void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface);
+void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len);
+void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_pkt);
+struct sr_rt *longest_prefix_match(struct sr_instance *sr, uint32_t dest_addr);
 
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );

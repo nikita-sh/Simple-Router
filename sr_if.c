@@ -82,7 +82,8 @@ struct sr_if *sr_get_interface_by_MAC(struct sr_instance *sr, uint8_t mac[ETHER_
     int eq = 1;
 
     while (walker) {
-        for (int i = 0; i < ETHER_ADDR_LEN; i++) {
+        int i;
+        for (i = 0; i < ETHER_ADDR_LEN; i++) {
             if (mac[i] != walker->addr[i]) {
                 eq = 0;
                 break;
