@@ -75,6 +75,8 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
 void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len);
 void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_pkt);
 struct sr_rt *longest_prefix_match(struct sr_instance *sr, uint32_t dest_addr);
+void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface);
+void send_icmp_time_exceeded(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface);
 
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );

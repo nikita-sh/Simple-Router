@@ -152,7 +152,12 @@ int check_ip_packet(uint8_t *pkt, unsigned int len) {
 
 void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
-  
+
+  if (!check_ip_packet(pkt, len)) {
+    printf("Packet is not valid. Dropping.\n");
+    return;
+  }
+
   struct sr_if *my_int = sr_get_interface_by_IP(sr, ip_hdr->ip_dst);
 
   if (my_int) {
@@ -176,9 +181,50 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
     }
   } else {
     /* Destined elsewhere, forward */
-    ;
+    forward_ip(sr, pkt, len, interface);
   }
 
+}
+
+void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
+  sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
+
+  if (!check_ip_packet(pkt, len)) {
+    printf("Received invalid packet. Dropping.\n");
+    return;
+  }
+
+  ip_hdr->ip_ttl--;
+  if (ip_hdr <= 0) {
+    /* send icmp time exceeded */
+    ;
+  }
+  ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+  /* Find longest prefix match */
+  struct sr_rt *my_int = longest_prefix_match(sr, ip_hdr->ip_dst);
+  if (my_int) {
+    /* Check ARP cache for next-hop MAC */
+    struct sr_if *my_if = sr_get_interface(sr, my_int->interface);
+    memcpy(eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    struct sr_arpentry *arp_entry = sr_arpcache_lookup(&sr->cache, ip_hdr->ip_src);
+    if (arp_entry) {
+      /* Match found, reconfigure Ethernet frame and forward. */
+      memcpy(eth_hdr->ether_dhost, arp_entry->mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
+      sr_send_packet(sr, pkt, len, my_if->name);
+    } else {
+      /* Queue packet for ARP */
+      sr_arpcache_queuereq(&sr->cache, my_if->ip, pkt, len, my_if->name);
+    }
+  } else {
+    /* Match not found, send icmp error */
+    send_icmp3_error(3, 0, sr, pkt);
+  }
+}
+
+void send_icmp_time_exceeded(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
+  ;
 }
 
 void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len) {
@@ -205,7 +251,7 @@ void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface,
   memcpy(eth_hdr->ether_shost, eth_hdr->ether_dhost, sizeof(uint8_t) * ETHER_ADDR_LEN);
   memcpy(eth_hdr->ether_dhost, temp_src, sizeof(uint8_t) * ETHER_ADDR_LEN);
 
-  sr_send_packet(sr, pkt, len, interface);
+  sr_send_packet(sr, pkt, len, my_int->name);
 }
 
 void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_pkt) {
