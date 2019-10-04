@@ -287,7 +287,7 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
     if (arp_entry) {
       /* Match found, prepare Ethernet frame and send */
       memcpy(eth_hdr->ether_dhost, arp_entry->mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
-      eth_hdr->ether_type = htonl(ethertype_ip);
+      eth_hdr->ether_type = htons(ethertype_ip);
 
       /* Compute IP checksum and send */
       ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
@@ -316,7 +316,7 @@ void send_arp_request(struct sr_instance *sr, uint32_t src_ip, uint8_t src_mac[E
   arp_req->ar_pro = htons(0x800);
   arp_req->ar_hln = 6;
   arp_req->ar_pln = 4;
-  arp_req->ar_op = htonl(arp_op_request);
+  arp_req->ar_op = arp_op_request;
   memcpy(arp_req->ar_sha, src_mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
   arp_req->ar_sip = src_ip;
   arp_req->ar_tip = dst_ip;
