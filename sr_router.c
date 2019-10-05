@@ -23,10 +23,6 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
-int check_eth_packet(uint8_t *packet, unsigned int len);
-void handle_arp(struct sr_instance *sr, uint8_t *pkt);
-void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface);
-
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -93,7 +89,7 @@ void sr_handlepacket(struct sr_instance* sr,
       if (ethertype(packet) == ethertype_arp) {
 
         printf("Received ARP packet.\n");
-        handle_arp(sr, packet);
+        handle_arp(sr, packet, interface, len);
 
       } else if (ethertype(packet) == ethertype_ip) {
 
@@ -125,12 +121,60 @@ int check_eth_packet(uint8_t *packet, unsigned int len) {
   return 1;
 }
 
-int check_arp_packet(uint8_t *pkt) {
+int check_arp_packet(uint8_t *pkt, unsigned int len) {
   return 1;
 }
 
-void handle_arp(struct sr_instance *sr, uint8_t *pkt) {
-  ;
+void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned int len) {
+  sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
+  sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
+
+  if (!check_arp_packet(pkt, len)) {
+    /* Send error? */
+    return;
+  }
+
+  struct sr_if *my_if = sr_get_interface_by_IP(sr, arp_hdr->ar_tip);
+
+  if (my_if) {
+    if (arp_hdr->ar_op == arp_op_request) {
+    uint8_t *ret_pkt = malloc(len);
+    memcpy(ret_pkt, pkt, len);
+
+    sr_ethernet_hdr_t *ret_eth_hdr = (sr_ethernet_hdr_t *)(ret_pkt);
+    sr_arp_hdr_t *ret_arp_hdr = (sr_arp_hdr_t *)(ret_pkt + sizeof(sr_ethernet_hdr_t));
+
+    memcpy(ret_eth_hdr->ether_dhost, eth_hdr->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    memcpy(ret_eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    ret_eth_hdr->ether_type = ethertype_arp;
+
+    ret_arp_hdr->ar_op = arp_op_reply;
+    memcpy(ret_arp_hdr->ar_sha, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    ret_arp_hdr->ar_sip = my_if->ip;
+    memcpy(ret_arp_hdr->ar_tha, eth_hdr->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN);
+    ret_arp_hdr->ar_tip = arp_hdr->ar_sip;
+
+    sr_send_packet(sr, ret_pkt, len, interface);
+    free(ret_pkt);
+    } else if (arp_hdr->ar_op == arp_op_reply) {
+      struct sr_arpreq *req = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+
+      if (req) {
+        struct sr_packet *walker = req->packets;
+
+        while (walker) {
+          sr_ethernet_hdr_t *w_eth = (sr_ethernet_hdr_t *)(walker->buf);
+          memcpy(w_eth, arp_hdr->ar_sha, sizeof(uint8_t) * ETHER_ADDR_LEN);
+
+          sr_send_packet(sr, walker->buf, walker->len, walker->iface);
+        }
+        sr_arpreq_destroy(&sr->cache, req);
+      }
+    } else {
+      printf("Unrecognized ARP Opcode. Dropping.\n");
+      return;
+    }
+  }
 }
 
 int check_ip_packet(uint8_t *pkt, unsigned int len) {
@@ -297,7 +341,8 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
       free(arp_entry);
     } else {
       /* No match exists, add packet to ARP queue */
-      sr_arpcache_queuereq(&sr->cache, my_if->ip, ret_pkt, plen, my_if->name);
+      struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, my_if->ip, ret_pkt, plen, my_if->name);
+      handle_arpreq(req, &sr->cache);
     }
   } else {
     fprintf(stderr, "IP not found in routing table for sending ICMP type 3. Check IP.\n");
