@@ -10,33 +10,47 @@
 #include "sr_router.h"
 #include "sr_if.h"
 #include "sr_protocol.h"
+#include "sr_rt.h"
 
 /*
   Handles an ARP request.
 */
-void handle_arpreq(struct sr_arpreq *req, struct sr_arpcache *cache) {
-    /* TODO */
+void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
     time_t now;
     time(&now);
     if (difftime(now, req->sent) > 1) {
         if (req->times_sent > 5) {
-            /* icmp host uncreachable packet */
-            struct sr_icmp_t3_hdr *msg;
-            msg->icmp_type = 3;
-            msg->icmp_code = 1;
-
-            /* TODO send packet */
-
-            sr_arpreq_destroy(cache, req);
+            struct sr_packet *walker = req->packets;
+            while (walker) {
+                send_icmp3_error(3, 1, sr, walker->buf);
+                walker = walker->next;
+            }
+            sr_arpreq_destroy(&sr->cache, req);
         } else {
-            /* ARP request */
-            struct sr_arp_hdr *fwd;
+            struct sr_rt *my_rt = longest_prefix_match(sr, req->ip);
+            struct sr_if *my_if = sr_get_interface(sr, my_rt->interface);
 
-            /* TODO send ARP req */
+            uint8_t *pkt = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
+            sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
+            sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_arp_hdr_t));
 
-            time(&now);
+            memcpy(eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+            memset(eth_hdr->ether_dhost, 255, sizeof(uint8_t) * ETHER_ADDR_LEN);
+            eth_hdr->ether_type = htons(ethertype_arp);
+
+            arp_hdr->ar_hrd = htons(1);
+            arp_hdr->ar_pro = htons(0x800);
+            arp_hdr->ar_hln = 6;
+            arp_hdr->ar_pln = 4;
+            arp_hdr->ar_op = htons(1);
+            memcpy(arp_hdr->ar_sha, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
+            arp_hdr->ar_sip = my_if->ip;
+            arp_hdr->ar_tip = req->ip;
+
+            sr_send_packet(sr, pkt, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), my_if->name);
             req->sent = now;
             req->times_sent++;
+            free(pkt);
         }
     }
 }
@@ -53,7 +67,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
     while (curr) {
         /* Save next ARP request in case handle_arpreq destroys curr. */
         next = curr->next;
-        handle_arpreq(curr, &(sr->cache));
+        handle_arpreq(sr, curr);
         curr = next;
         next = NULL;
     }    

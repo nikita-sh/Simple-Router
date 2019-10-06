@@ -342,37 +342,11 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
     } else {
       /* No match exists, add packet to ARP queue */
       struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, my_if->ip, ret_pkt, plen, my_if->name);
-      handle_arpreq(req, &sr->cache);
+      handle_arpreq(sr, req);
     }
   } else {
     fprintf(stderr, "IP not found in routing table for sending ICMP type 3. Check IP.\n");
     return;
-  }
-}
-
-/*----------------------------------------------------------------------------------------------------------------------
- * NOTE: This is gonna be done in arpcache.c. We throw packets on the queue and send ARP requests there. Once we get one,
- * we send all the packets on the queue in there.
- *-----------------------------------------------------------------------------------------------------------------------*/
-void send_arp_request(struct sr_instance *sr, uint32_t src_ip, uint8_t src_mac[ETHER_ADDR_LEN], uint32_t dst_ip, char *interface) {
-  sr_arp_hdr_t *arp_req;
-
-  arp_req->ar_hrd = arp_hrd_ethernet;
-  arp_req->ar_pro = htons(0x800);
-  arp_req->ar_hln = 6;
-  arp_req->ar_pln = 4;
-  arp_req->ar_op = arp_op_request;
-  memcpy(arp_req->ar_sha, src_mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
-  arp_req->ar_sip = src_ip;
-  arp_req->ar_tip = dst_ip;
-
-  /* Search routing table for longest prefix match for dst IP */
-  struct sr_rt *lpm = longest_prefix_match(sr, dst_ip);
-  if (!lpm) {
-    /* somethings wrong, shouldnt get here */
-    return;
-  } else {
-    ;
   }
 }
 
@@ -397,4 +371,3 @@ struct sr_rt *longest_prefix_match(struct sr_instance *sr, uint32_t dest_addr) {
 
   return longest;
 }
-
