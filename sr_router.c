@@ -240,7 +240,7 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   }
 
   ip_hdr->ip_ttl--;
-  if (ip_hdr <= 0) {
+  if (ip_hdr->ip_ttl <= 0) {
     /* send icmp time exceeded */
     send_icmp3_error(11, 0, sr, pkt);
   }
