@@ -19,16 +19,20 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
     time_t now;
     time(&now);
     if (difftime(now, req->sent) > 1) {
+        printf("already sent more than once\n");
         if (req->times_sent > 5) {
+            printf("sent more than 5 times\n send icmp error to all packets\n");
             struct sr_packet *walker = req->packets;
             while (walker) {
                 send_icmp3_error(3, 1, sr, walker->buf);
                 walker = walker->next;
             }
+            printf("errors sent, destroying req\n");
             sr_arpreq_destroy(&sr->cache, req);
+            printf("req destroyed\n");
         } else {
-            struct sr_rt *my_rt = longest_prefix_match(sr, req->ip);
-            struct sr_if *my_if = sr_get_interface(sr, my_rt->interface);
+            printf("sent less than 5 times\n");
+            struct sr_if *my_if = sr_get_interface(sr, req->packets->iface);
 
             uint8_t *pkt = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
             sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
@@ -38,16 +42,17 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
             memset(eth_hdr->ether_dhost, 255, sizeof(uint8_t) * ETHER_ADDR_LEN);
             eth_hdr->ether_type = htons(ethertype_arp);
 
-            arp_hdr->ar_hrd = htons(1);
-            arp_hdr->ar_pro = htons(0x800);
+            arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
+            arp_hdr->ar_pro = htons(ethertype_arp);
             arp_hdr->ar_hln = 6;
             arp_hdr->ar_pln = 4;
-            arp_hdr->ar_op = htons(1);
+            arp_hdr->ar_op = htons(arp_op_request);
             memcpy(arp_hdr->ar_sha, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
             arp_hdr->ar_sip = my_if->ip;
             arp_hdr->ar_tip = req->ip;
 
             sr_send_packet(sr, pkt, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), my_if->name);
+            printf("arp req sent\n");
             req->sent = now;
             req->times_sent++;
             free(pkt);
