@@ -24,7 +24,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
             printf("sent more than 5 times\n send icmp error to all packets\n");
             struct sr_packet *walker = req->packets;
             while (walker) {
-                send_icmp3_error(3, 1, sr, walker->buf);
+                send_icmp3_error(3, 1, sr, walker->buf, walker->iface);
                 walker = walker->next;
             }
             printf("errors sent, destroying req\n");
