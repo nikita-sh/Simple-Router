@@ -11,6 +11,7 @@
 #include "sr_if.h"
 #include "sr_protocol.h"
 #include "sr_rt.h"
+#include "sr_utils.h"
 
 /*
   Handles an ARP request.
@@ -36,23 +37,26 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
 
             uint8_t *pkt = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
             sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
-            sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_arp_hdr_t));
+            sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
 
             memcpy(eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
             memset(eth_hdr->ether_dhost, 255, sizeof(uint8_t) * ETHER_ADDR_LEN);
             eth_hdr->ether_type = htons(ethertype_arp);
 
             arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
-            arp_hdr->ar_pro = htons(ethertype_arp);
+            arp_hdr->ar_pro = ethertype_arp;
             arp_hdr->ar_hln = 6;
             arp_hdr->ar_pln = 4;
-            arp_hdr->ar_op = htons(arp_op_request);
+            arp_hdr->ar_op = arp_op_request;
             memcpy(arp_hdr->ar_sha, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
             arp_hdr->ar_sip = my_if->ip;
             arp_hdr->ar_tip = req->ip;
 
+            printf("arp req sent:\n");
+            print_hdr_eth(pkt);
+            print_hdr_arp(pkt + sizeof(sr_ethernet_hdr_t));
             sr_send_packet(sr, pkt, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t), my_if->name);
-            printf("arp req sent\n");
+            
             req->sent = now;
             req->times_sent++;
             free(pkt);
