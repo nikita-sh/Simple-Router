@@ -212,7 +212,7 @@ int check_ip_packet(uint8_t *pkt, unsigned int len) {
 
   uint16_t old_cksm = ip_hdr->ip_sum;
   ip_hdr->ip_sum = 0;
-  if (old_cksm != cksum(ip_hdr, sizeof(sr_ethernet_hdr_t))) {
+  if (old_cksm != cksum(ip_hdr, sizeof(sr_ip_hdr_t))) {
     return 0;
   }
   ip_hdr->ip_sum = old_cksm;
@@ -223,12 +223,11 @@ int check_ip_packet(uint8_t *pkt, unsigned int len) {
 void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
   
-  /*
+  
   if (!check_ip_packet(pkt, len)) {
     printf("Packet is not valid. Dropping.\n");
     return;
   }
-  */
 
   struct sr_if *my_int = sr_get_interface_by_IP(sr, ip_hdr->ip_dst);
 
@@ -265,12 +264,10 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
 
-  /*
   if (!check_ip_packet(pkt, len)) {
     printf("Received invalid packet. Dropping.\n");
     return;
   }
-  */
 
   printf("Checking IP checksum.\n");
   ip_hdr->ip_ttl--;
@@ -330,9 +327,9 @@ void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface,
 
   /* Prepare IP header */
   struct sr_if *my_int = sr_get_interface(sr, interface);
-  sr_print_if(my_int);
+  uint32_t temp = ip_hdr->ip_dst;
   ip_hdr->ip_dst = ip_hdr->ip_src;
-  ip_hdr->ip_src = my_int->ip;
+  ip_hdr->ip_src = temp;
   ip_hdr->ip_sum = 0;
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 
