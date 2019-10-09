@@ -44,7 +44,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
             eth_hdr->ether_type = htons(ethertype_arp);
 
             arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
-            arp_hdr->ar_pro = ethertype_arp;
+            arp_hdr->ar_pro = htons(ethertype_ip);
             arp_hdr->ar_hln = 6;
             arp_hdr->ar_pln = 4;
             arp_hdr->ar_op = arp_op_request;
