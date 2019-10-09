@@ -186,10 +186,13 @@ void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned 
           sr_ethernet_hdr_t *w_eth = (sr_ethernet_hdr_t *)(walker->buf);
           memcpy(w_eth, arp_hdr->ar_sha, sizeof(uint8_t) * ETHER_ADDR_LEN);
 
+          printf("================ARP REPLY PACKETS SENT===============\n");
           print_hdr_eth((uint8_t *)(w_eth));
           print_hdr_ip((uint8_t *)(w_eth) + sizeof(sr_ethernet_hdr_t));
+          printf("======================================================");
 
           sr_send_packet(sr, walker->buf, walker->len, walker->iface);
+          walker = walker->next;
         }
         sr_arpreq_destroy(&sr->cache, req);
       }
@@ -294,7 +297,7 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
       /* Queue packet for ARP */
       printf("queueing packet:\n");
       print_hdr_eth(pkt);
-      struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, my_if->ip, pkt, len, my_if->name);
+      struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, ip_hdr->ip_dst, pkt, len, my_if->name);
       handle_arpreq(sr, req);
     }
   } else {
