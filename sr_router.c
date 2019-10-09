@@ -189,7 +189,7 @@ void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned 
           printf("================ARP REPLY PACKETS SENT===============\n");
           print_hdr_eth((uint8_t *)(w_eth));
           print_hdr_ip((uint8_t *)(w_eth) + sizeof(sr_ethernet_hdr_t));
-          printf("======================================================");
+          printf("======================================================\n");
 
           sr_send_packet(sr, walker->buf, walker->len, walker->iface);
           walker = walker->next;
@@ -275,6 +275,7 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
     /* send icmp time exceeded */
     send_icmp3_error(11, 0, sr, pkt, interface);
   }
+  ip_hdr->ip_sum = 0;
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 
   /* Find longest prefix match */
@@ -291,8 +292,13 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
     if (arp_entry) {
       /* Match found, reconfigure Ethernet frame and forward. */
       memcpy(eth_hdr->ether_dhost, arp_entry->mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
+
+      printf("================IP FORWARD PKT SENT===================\n");
+      print_hdr_eth(pkt);
+      print_hdr_ip(pkt + sizeof(sr_ethernet_hdr_t));
+      printf("======================================================\n");
+
       sr_send_packet(sr, pkt, len, my_if->name);
-      printf("sent\n");
     } else {
       /* Queue packet for ARP */
       printf("queueing packet:\n");
