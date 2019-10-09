@@ -359,7 +359,7 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   uint8_t *ret_pkt = malloc(plen);
 
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(ret_pkt + sizeof(sr_ethernet_hdr_t));
-  sr_icmp_t3_hdr_t *icmp_hdr = (sr_icmp_t3_hdr_t *)(ip_hdr + sizeof(sr_ip_hdr_t));
+  sr_icmp_t3_hdr_t *icmp_hdr = (sr_icmp_t3_hdr_t *)(ret_pkt + sizeof(sr_ip_hdr_t) + sizeof(sr_ethernet_hdr_t));
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(ret_pkt);
 
   struct sr_if *in_if = sr_get_interface(sr, interface);
@@ -367,18 +367,17 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   /* Init Ethernet Header */
   memcpy(eth_hdr->ether_shost, in_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
   memset(eth_hdr->ether_dhost, 0, sizeof(uint8_t) * ETHER_ADDR_LEN);
-  eth_hdr->ether_type = ntohs(ethertype_ip);
+  eth_hdr->ether_type = htons(ethertype_ip);
 
   /* memcpy(eth_hdr->ether_dhost, ((sr_ethernet_hdr_t *)(orig_pkt))->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN); */
 
   /* Construct IP Header */
   ip_hdr->ip_v = 4;
   ip_hdr->ip_hl = 5;
-  ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-  ip_hdr->ip_tos = 0;
   ip_hdr->ip_len = plen;
+  ip_hdr->ip_tos = 0;
   ip_hdr->ip_id = 0;
-  ip_hdr->ip_off = IP_DF;
+  ip_hdr->ip_off = htons(IP_DF);
   ip_hdr->ip_ttl = 64;
   ip_hdr->ip_p = ip_protocol_icmp;
   ip_hdr->ip_sum = 0;
@@ -393,13 +392,13 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   icmp_hdr->next_mtu = 0;
   icmp_hdr->unused = 0;
   icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
-  memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(sr_icmp_t3_hdr_t));
+  memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(uint8_t) * ICMP_DATA_SIZE);
 
   printf("==============ICMP ORIGINAL PACKET===============\n");
   print_hdr_eth(orig_pkt);
   print_hdr_ip(orig_pkt + sizeof(sr_ethernet_hdr_t));
   print_hdr_icmp(orig_pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-  printf("================================================\n");
+  printf("================================================\n\n");
 
   printf("==============ICMP RETURN PACKET===============\n");
   print_hdr_eth(ret_pkt);
@@ -407,7 +406,7 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   print_hdr_icmp(ret_pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
   printf("================================================\n");
 
-  sr_send_packet(sr, ret_pkt, sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t), in_if->name);
+  sr_send_packet(sr, ret_pkt, plen, in_if->name);
 
   
   struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, ip_hdr->ip_dst);
