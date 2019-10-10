@@ -369,12 +369,12 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   memset(eth_hdr->ether_dhost, 0, sizeof(uint8_t) * ETHER_ADDR_LEN);
   eth_hdr->ether_type = htons(ethertype_ip);
 
-  /* memcpy(eth_hdr->ether_dhost, ((sr_ethernet_hdr_t *)(orig_pkt))->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN); */
+  memcpy(eth_hdr->ether_dhost, ((sr_ethernet_hdr_t *)(orig_pkt))->ether_shost, sizeof(uint8_t) * ETHER_ADDR_LEN); 
 
   /* Construct IP Header */
   ip_hdr->ip_v = 4;
-  ip_hdr->ip_hl = 5;
-  ip_hdr->ip_len = plen;
+  ip_hdr->ip_hl = sizeof(sr_ip_hdr_t) / 4;
+  ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
   ip_hdr->ip_tos = 0;
   ip_hdr->ip_id = 0;
   ip_hdr->ip_off = htons(IP_DF);
@@ -388,11 +388,11 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   /* Construct ICMP Header */
   icmp_hdr->icmp_type = type;
   icmp_hdr->icmp_code = code;
-  icmp_hdr->icmp_sum = 0;
   icmp_hdr->next_mtu = 0;
   icmp_hdr->unused = 0;
-  icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
   memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(uint8_t) * ICMP_DATA_SIZE);
+  icmp_hdr->icmp_sum = 0;
+  icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
 
   printf("==============ICMP ORIGINAL PACKET===============\n");
   print_hdr_eth(orig_pkt);
@@ -406,9 +406,6 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   print_hdr_icmp(ret_pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
   printf("================================================\n");
 
-  sr_send_packet(sr, ret_pkt, plen, in_if->name);
-
-  
   struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, ip_hdr->ip_dst);
   if (entry) {
     printf("ARP Cache entry found for ICMP3\n");
