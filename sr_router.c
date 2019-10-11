@@ -384,7 +384,14 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   ip_hdr->ip_p = ip_protocol_icmp;
   ip_hdr->ip_sum = 0;
   ip_hdr->ip_dst = ((sr_ip_hdr_t *)(orig_pkt + sizeof(sr_ethernet_hdr_t)))->ip_src; /* Already net. byte order */
-  ip_hdr->ip_src = in_if->ip;
+    
+  /* code field (8 bits): 3 for port unreachable, 1 for host unreachable, 0 for network */
+  if (code == 3) {
+    ip_hdr->ip_src = ((sr_ip_hdr_t *)(orig_pkt + sizeof(sr_ethernet_hdr_t)))->ip_dst;
+  } else {
+    ip_hdr->ip_src = in_if->ip;
+  }
+
   ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
 
   /* Construct ICMP Header */
