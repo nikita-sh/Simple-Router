@@ -236,9 +236,11 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
       printf("Received ICMP packet.\n");
 
       /* ICMP */
-      sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(ip_hdr + sizeof(sr_ip_hdr_t));
-      if (icmp_hdr->icmp_type != 0) {
+      sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+      if (icmp_hdr->icmp_type != 8) {
         /* Unsupported type, drop */
+        printf("Dropping\n");
+        printf("%d\n", icmp_hdr->icmp_type);
         return ;
       }
       printf("Sending ICMP echo reply.\n");
