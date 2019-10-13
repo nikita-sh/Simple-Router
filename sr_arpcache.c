@@ -19,7 +19,7 @@
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
     time_t now;
     time(&now);
-    if (difftime(now, req->sent) > 1) {
+    if (difftime(now, req->sent) >= 1) {
         printf("already sent more than once\n");
         if (req->times_sent > 5) {
             printf("sent more than 5 times\n send icmp error to all packets\n");
