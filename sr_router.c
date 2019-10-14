@@ -108,22 +108,6 @@ void sr_handlepacket(struct sr_instance* sr,
 
 }/* end sr_ForwardPacket */
 
-/*
-void forward_pkt(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface, enum sr_ethertype type) {
-  switch (type) {
-    case ethertype_ip:
-      forward_ip(sr, pkt, len, interface);
-      break;
-    case ethertype_arp:
-      forward_arp(sr, pkt, len, interface);
-      break;
-    default:
-      printf("Received unsupported packet. Dropping.");
-      break;
-  }
-}
-*/
-
 int check_eth_packet(uint8_t *packet, unsigned int len) {
   if (len < sizeof(sr_ethernet_hdr_t)) {
     return 0;
@@ -167,11 +151,6 @@ void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned 
       memcpy(ret_arp_hdr->ar_tha, arp_hdr->ar_sha, sizeof(uint8_t) * ETHER_ADDR_LEN);
       ret_arp_hdr->ar_tip = arp_hdr->ar_sip;
 
-      printf("================ARP REQ RETURN PACKET==============\n");
-      print_hdr_eth(ret_pkt);
-      print_hdr_arp(ret_pkt +  sizeof(sr_ethernet_hdr_t));
-      printf("===================================================\n");
-
       sr_send_packet(sr, ret_pkt, len, interface);
       free(ret_pkt);
 
@@ -185,11 +164,6 @@ void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned 
         while (walker) {
           sr_ethernet_hdr_t *w_eth = (sr_ethernet_hdr_t *)(walker->buf);
           memcpy(w_eth, arp_hdr->ar_sha, sizeof(uint8_t) * ETHER_ADDR_LEN);
-
-          printf("================ARP REPLY PACKETS SENT===============\n");
-          print_hdr_eth((uint8_t *)(w_eth));
-          print_hdr_ip((uint8_t *)(w_eth) + sizeof(sr_ethernet_hdr_t));
-          printf("======================================================\n");
 
           sr_send_packet(sr, walker->buf, walker->len, walker->iface);
           walker = walker->next;
@@ -294,7 +268,6 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   ip_hdr->ip_ttl--;
   if (ip_hdr->ip_ttl <= 0) {
     /* send icmp time exceeded */
-    printf("segfaulting here?\n");
     send_icmp3_error(11, 0, sr, pkt, interface);
   }
   ip_hdr->ip_sum = 0;
@@ -314,11 +287,6 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
     if (arp_entry) {
       /* Match found, reconfigure Ethernet frame and forward. */
       memcpy(eth_hdr->ether_dhost, arp_entry->mac, sizeof(uint8_t) * ETHER_ADDR_LEN);
-
-      printf("================IP FORWARD PKT SENT===================\n");
-      print_hdr_eth(pkt);
-      print_hdr_ip(pkt + sizeof(sr_ethernet_hdr_t));
-      printf("======================================================\n");
 
       sr_send_packet(sr, pkt, len, my_if->name);
     } else {
@@ -420,18 +388,6 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   memcpy(icmp_hdr->data, orig_pkt + sizeof(sr_ethernet_hdr_t), sizeof(uint8_t) * ICMP_DATA_SIZE);
   icmp_hdr->icmp_sum = 0;
   icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
-
-  printf("==============ICMP ORIGINAL PACKET===============\n");
-  print_hdr_eth(orig_pkt);
-  print_hdr_ip(orig_pkt + sizeof(sr_ethernet_hdr_t));
-  print_hdr_icmp(orig_pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-  printf("================================================\n\n");
-
-  printf("==============ICMP RETURN PACKET===============\n");
-  print_hdr_eth(ret_pkt);
-  print_hdr_ip(ret_pkt + sizeof(sr_ethernet_hdr_t));
-  print_hdr_icmp(ret_pkt + sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
-  printf("================================================\n");
 
   struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, ip_hdr->ip_dst);
   if (entry) {

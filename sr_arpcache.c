@@ -20,7 +20,6 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
     time_t now;
     time(&now);
     if (difftime(now, req->sent) >= 1) {
-        printf("already sent more than once\n");
         if (req->times_sent > 5) {
             printf("sent more than 5 times\n send icmp error to all packets\n");
             struct sr_packet *walker = req->packets;
@@ -32,16 +31,11 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *req) {
             sr_arpreq_destroy(&sr->cache, req);
             printf("req destroyed\n");
         } else {
-            printf("sent less than 5 times\n");
             struct sr_if *my_if = sr_get_interface(sr, req->packets->iface);
-            printf("segfault?\n");
             uint8_t *pkt = malloc(sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t));
-            printf("segfault 2?\n");
             sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
             sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
-            printf("here?\n");
             memcpy(eth_hdr->ether_shost, my_if->addr, sizeof(uint8_t) * ETHER_ADDR_LEN);
-            printf("maybe here?\n");
             memset(eth_hdr->ether_dhost, 255, sizeof(uint8_t) * ETHER_ADDR_LEN);
             eth_hdr->ether_type = htons(ethertype_arp);
 
