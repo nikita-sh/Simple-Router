@@ -54,6 +54,12 @@ struct sr_if* sr_get_interface(struct sr_instance* sr, const char* name)
     return 0;
 } /* -- sr_get_interface -- */
 
+/*--------------------------------------------------------------------- 
+ * sr_get_interface_by_IP
+ *
+ * Given a 32 bit IP address, return the related interface or 0 if it
+ * doesn't exist.
+ *---------------------------------------------------------------------*/
 struct sr_if *sr_get_interface_by_IP(struct sr_instance *sr, uint32_t ip) {
     struct sr_if *walker = 0;
 
@@ -72,6 +78,12 @@ struct sr_if *sr_get_interface_by_IP(struct sr_instance *sr, uint32_t ip) {
     return 0;
 }
 
+/*--------------------------------------------------------------------- 
+ * sr_get_interface_by_MAC
+ *
+ * Given a physical MAC address, return the related interface or 0 if it
+ * doesn't exist.
+ *---------------------------------------------------------------------*/
 struct sr_if *sr_get_interface_by_MAC(struct sr_instance *sr, uint8_t mac[ETHER_ADDR_LEN]) {
     /* -- REQUIRES -- */
     assert(mac);
