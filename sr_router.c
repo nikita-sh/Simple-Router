@@ -108,6 +108,8 @@ void sr_handlepacket(struct sr_instance* sr,
 
 }/* end sr_ForwardPacket */
 
+/* ----------------------------------------------- */
+/* Helpers for sr_handlepacket() and handle_arp(). */
 int check_eth_packet(uint8_t *packet, unsigned int len) {
   if (len < sizeof(sr_ethernet_hdr_t)) {
     return 0;
@@ -118,7 +120,14 @@ int check_eth_packet(uint8_t *packet, unsigned int len) {
 int check_arp_packet(uint8_t *pkt, unsigned int len) {
   return 1;
 }
+/* ----------------------------------------------- */
 
+/*--------------------------------------------------------------------- 
+ * handle_arp
+ *
+ * Given either an ARP request or ARP reply, handle the packet appropriately.
+ * If ARP opcode is unrecognized, drop the packet.
+ *---------------------------------------------------------------------*/
 void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned int len) {
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
   sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
@@ -177,6 +186,11 @@ void handle_arp(struct sr_instance *sr, uint8_t *pkt, char *interface, unsigned 
   }
 }
 
+/*--------------------------------------------------------------------- 
+ * check_ip_packet
+ *
+ * Check length and checksum of an IP packet. Return 1 if valid, 0 if not.
+ *---------------------------------------------------------------------*/
 int check_ip_packet(uint8_t *pkt, unsigned int len) {
   if (len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t)) {
     return 0;
@@ -194,6 +208,11 @@ int check_ip_packet(uint8_t *pkt, unsigned int len) {
   return 1;
 }
 
+/*--------------------------------------------------------------------- 
+ * check_icmp_packet
+ *
+ * Check length and checksum of an ICMP packet. Return 1 if valid, 0 if not.
+ *---------------------------------------------------------------------*/
 int check_icmp_packet(uint8_t *pkt, int len) {
   if (len < sizeof(sr_icmp_hdr_t)) {
     return  0;
@@ -214,6 +233,12 @@ int check_icmp_packet(uint8_t *pkt, int len) {
   return 1;
 }
 
+/*--------------------------------------------------------------------- 
+ * handle_ip
+ *
+ * Checks incoming packet. Reply to echo requests, send Port Unreachable
+ * error for TCP/UDP, or forward the packet. Drop others.
+ *---------------------------------------------------------------------*/
 void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
   
@@ -255,6 +280,18 @@ void handle_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *int
   }
 }
 
+/*--------------------------------------------------------------------- 
+ * forward_ip
+ *
+ * Given an IP packet, check the checksum decrement the TTL, and send an
+ * ICMP time exceeded message if it is zero. Otherwise, find the longest
+ * prefix match and forward the packet to that address.
+ * 
+ * Check the ARP cache for a match, send if found, or queue if not.
+ * 
+ * If no longest prefix match was found, send an ICMP Network Unreachable
+ * message.
+ *---------------------------------------------------------------------*/
 void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *interface) {
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
@@ -303,6 +340,14 @@ void forward_ip(struct sr_instance *sr, uint8_t *pkt, unsigned int len, char *in
   }
 }
 
+/*--------------------------------------------------------------------- 
+ * send_icmp_echo_reply
+ *
+ * Prepares the complete ICMP, IP and ethernet headers to send an
+ * ICMP type 0 echo reply message.
+ * 
+ * Check the ARP cache for a match, send if found, or queue if not.
+ *---------------------------------------------------------------------*/
 void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface, int len) {
   sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *)(pkt);
   sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(pkt + sizeof(sr_ethernet_hdr_t));
@@ -341,7 +386,16 @@ void send_icmp_echo_reply(struct sr_instance *sr, uint8_t *pkt, char *interface,
   }
 }
 
-
+/*--------------------------------------------------------------------- 
+ * send_icmp3_error
+ *
+ * Given a type of 3 and related code, constructs the ICMP packet
+ * for a Destination Unreachable message (showing the source of the message
+ * as the original destination for a Port Unreachable error, or the IP of
+ * the given interface for other errors).
+ * 
+ * Check the ARP cache for a match, send if found, or queue if not.
+ *---------------------------------------------------------------------*/
 void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_pkt, char *interface) {
   unsigned int plen = sizeof(sr_ethernet_hdr_t) + sizeof(sr_icmp_t3_hdr_t) + sizeof(sr_ip_hdr_t);
   uint8_t *ret_pkt = malloc(plen);
@@ -403,6 +457,13 @@ void send_icmp3_error(int type, int code, struct sr_instance *sr, uint8_t *orig_
   
 }
 
+/*--------------------------------------------------------------------- 
+ * longest_prefix_match
+ *
+ * Given an instance of SR and the 32 bit destination address, searches
+ * SR's routing table for the longest prefix match (if one exists) and
+ * returns that entry of the routing table.
+ *---------------------------------------------------------------------*/
 struct sr_rt *longest_prefix_match(struct sr_instance *sr, uint32_t dest_addr) {
   struct sr_rt *walker = 0;
 
